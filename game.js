@@ -39,6 +39,7 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeBtn = document.getElementById('theme-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -169,7 +170,7 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -226,6 +227,28 @@ function endGame() {
   overlay.classList.remove('hidden');
 }
 
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  themeBtn.textContent = theme === 'light' ? 'Tema oscuro' : 'Tema claro';
+  if (current) {
+    draw();
+    drawNext();
+  }
+}
+
+function toggleTheme() {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem('theme', theme); } catch (e) { /* almacenamiento no disponible */ }
+  applyTheme(theme);
+}
+
+function initialTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('theme'); } catch (e) { /* ignorar */ }
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
@@ -276,6 +299,7 @@ function init() {
 
 document.addEventListener('keydown', e => {
   if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyT') { toggleTheme(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -300,5 +324,10 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+themeBtn.addEventListener('click', () => {
+  toggleTheme();
+  themeBtn.blur();
+});
 
+applyTheme(initialTheme());
 init();
