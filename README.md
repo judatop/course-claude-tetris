@@ -44,6 +44,40 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Pausa** y **Game Over** con opción de reinicio.
 - **Tema claro / oscuro** con botón o tecla `T`; se guarda en `localStorage` y por defecto sigue `prefers-color-scheme`.
 
+Además incluye mecánicas extra:
+
+- **Sistema de Hold** (`C` o `Shift`): guarda la pieza actual o la intercambia con la reservada. Solo se puede usar una vez por pieza; mientras está bloqueado, el slot se ve atenuado.
+- **Power-ups**: cada 5 líneas, una pieza de la cola trae una celda especial que se activa al fijarla:
+  - ✹ **Bomba**: destruye un área de 3×3.
+  - ↔/↕ **Rayo**: limpia una fila o una columna.
+  - ◈ **Tinte**: el color más abundante se vuelve comodín; los comodines desaparecen en la siguiente limpieza y dan puntos extra.
+  - ⇓ **Gravedad**: compacta los huecos.
+  - ❄ **Congelar**: detiene la caída 5 segundos.
+- **Piezas no estándar**:
+  - Pentominós `+`, `U` e `Y` que aparecen de vez en cuando.
+  - Pieza 1×1 de recompensa tras un Tetris.
+  - Pieza 3×3 hueca como reto, desde el nivel 3.
+- **Combos y bonus**:
+  - Cada limpieza consecutiva aumenta el multiplicador (x2, x3, x4…).
+  - Bonus por **T-spin**, **Back-to-Back** (×1.5) y **Perfect Clear** (+3000 × nivel).
+  - Cada limpieza muestra textos flotantes, destellos y sonidos. La tecla `M` activa o silencia el sonido.
+- **Habilidades cargables**: la barra de energía se llena limpiando líneas. Cuando está llena, `E` abre un selector (teclas `1`–`5`):
+  1. Ver las siguientes 5 piezas durante 20 s.
+  2. Intercambiar la pieza actual por otra al azar.
+  3. Ralentizar el tiempo durante 10 s.
+  4. Deshacer la última colocación.
+  5. Hold libre: desbloquea el Hold para la pieza actual.
+- **Modos de juego** (se eligen al iniciar):
+
+  | Modo          | Regla                                         | Objetivo                       |
+  | ------------- | --------------------------------------------- | ------------------------------ |
+  | Clásico       | Partida infinita                              | —                              |
+  | Sprint        | Límite de 2 minutos                           | 40 líneas                      |
+  | Basura        | Sube una fila de basura cada 10 s             | Sobrevivir 3 minutos           |
+  | Bloques fijos | El tablero empieza con bloques preubicados    | Eliminar todos los bloques fijos |
+  | Invisible     | Las piezas desaparecen al tocar el suelo      | 20 líneas                      |
+  | Inversión     | La rotación se invierte desde el nivel 3      | 30 líneas                      |
+
 ---
 
 ## Cómo ejecutar el juego
@@ -85,8 +119,14 @@ Después abre `http://localhost:8000` en el navegador.
 | `↑` o `X` | Rotar la pieza en sentido horario |
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
+| `C` o `Shift` | Guardar / intercambiar pieza (Hold) |
+| `E`       | Usar habilidad (con energía llena) |
+| `1`–`5` / `Esc` | Elegir habilidad / cancelar |
 | `P`       | Pausar / reanudar                 |
+| `M`       | Activar / silenciar sonido        |
 | `T`       | Alternar tema claro / oscuro      |
+
+En el modo Inversión, a partir del nivel 3 la rotación pasa a ser antihoraria.
 
 ---
 
@@ -99,8 +139,10 @@ El juego se compone de tres archivos que cooperan:
 Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
-- Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Un panel izquierdo con `HOLD`, la barra de energía, el combo, el modo con su objetivo, el tiempo y los efectos activos.
+- Un panel derecho con `SCORE`, `LINES`, `LEVEL` y la vista de la siguiente pieza. Con la habilidad activa, también muestra 4 piezas más.
+- La lista de controles debajo del tablero.
+- Un overlay con cuatro vistas: menú de modos, **PAUSA**, selector de habilidades y fin de partida (**GAME OVER** o **¡DESAFÍO SUPERADO!**).
 
 ### 2. `style.css`
 
@@ -119,23 +161,33 @@ Contiene toda la lógica del juego. A grandes rasgos:
 - **Puntuación**: usa la tabla clásica `[0, 100, 300, 500, 800]` multiplicada por el nivel actual; el hard drop suma 2 puntos por celda recorrida y el soft drop 1 punto por fila.
 - **Nivel y velocidad**: el nivel sube cada 10 líneas; la velocidad de caída se calcula como `max(100, 1000 − (level − 1) × 90)` milisegundos.
 - **Ghost piece** (`ghostY`): proyecta la posición final de la pieza actual hacia abajo y la dibuja con `globalAlpha = 0.2`.
+- **Cola de piezas** (`queue`): array de descriptores `{ type, power }` con al menos 5 elementos. `rollType()` decide si sale un tetrominó, un pentominó o la pieza hueca.
+- **Power-ups** (`grantPower`, `applyPower`): se activan al fijar la pieza, antes de `clearLines()`.
+- **Combos** (`clearLines(tspin)`): aplican el multiplicador de combo, el T-spin, el B2B, el Perfect Clear y los comodines.
+- **Modos** (`MODES`, `checkObjectives`): el tiempo de partida (`gameTime`) solo avanza dentro del loop, así que la pausa no lo consume.
 
 ### Flujo del juego
 
 ```
-init()
-  ├─ createBoard()                  → matriz vacía
-  ├─ next = randomPiece()
-  ├─ spawn()                        → mueve next a current y genera nueva next
+carga → showMenu()  (overlay con los modos)
+init(mode)
+  ├─ createBoard() (+ seedFixedBlocks() en "Bloques fijos")
+  ├─ fillQueue()
+  ├─ spawn()                        → saca queue[0] a current y rellena la cola
   └─ requestAnimationFrame(loop)
         ↓
    loop(timestamp)
-     ├─ acumula dt
-     ├─ si dt ≥ dropInterval → baja la pieza o llama a lockPiece()
-     ├─ draw()  (grid + tablero + ghost + pieza actual)
+     ├─ acumula dt en gameTime y dropAccum (no avanza con Congelar, más lento con Ralentizar)
+     ├─ si dropAccum ≥ intervalo → baja la pieza o llama a lockPiece()
+     ├─ modo Basura: cada 10 s addGarbageRow()
+     ├─ checkObjectives() + updateStatus()
+     ├─ draw()  (grid + tablero + ghost + pieza actual + efectos)
      └─ requestAnimationFrame(loop)
 
-   keydown → mover / rotar / soft-drop / hard-drop / pausa
+   lockPiece()
+     → snapshot para deshacer → isTSpin() → merge() → applyPower() → clearLines() → spawn()
+
+   keydown → mover / rotar / soft-drop / hard-drop / hold / habilidad / pausa / sonido / tema
 ```
 
 Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara `endGame()` y se muestra el overlay de **Game Over**.
@@ -160,7 +212,7 @@ Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara
 03-tetris/
 ├── index.html      # Estructura del DOM y canvas
 ├── style.css       # Estilos del juego (dark theme)
-├── game.js         # Toda la lógica del Tetris (~300 líneas)
+├── game.js         # Toda la lógica del Tetris (~1000 líneas)
 └── README.md
 ```
 
@@ -175,7 +227,9 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLS`         | Columnas del tablero                     | `10`                  |
 | `ROWS`         | Filas del tablero                        | `20`                  |
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
-| `COLORS`       | Paleta de colores por tipo de pieza      | 7 colores             |
+| `COLORS`       | Paleta por tipo de celda (piezas, basura, fijos, comodín) | 15 colores |
+| `POWER_EVERY`  | Líneas entre power-ups                   | `5`                   |
+| `MODES`        | Reglas y objetivos de cada modo          | 6 modos               |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 

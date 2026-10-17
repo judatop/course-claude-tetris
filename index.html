@@ -12,6 +12,35 @@
 
     <div class="game-area">
     <div class="game-container">
+      <aside class="panel panel-left">
+        <div class="panel-section">
+          <span class="label">HOLD</span>
+          <canvas id="hold-canvas" class="preview" width="120" height="120"></canvas>
+        </div>
+        <div class="panel-section">
+          <span class="label">ENERGÍA</span>
+          <div id="energy-bar" class="energy-bar"><div id="energy-fill" class="energy-fill"></div></div>
+          <span class="hint">Llena: pulsa <kbd>E</kbd></span>
+        </div>
+        <div class="panel-section">
+          <span class="label">COMBO</span>
+          <span class="value" id="combo">—</span>
+        </div>
+        <div class="panel-section">
+          <span class="label">MODO</span>
+          <span class="info" id="mode-name">Clásico</span>
+          <span class="info muted" id="objective">—</span>
+        </div>
+        <div class="panel-section">
+          <span class="label" id="timer-label">TIEMPO</span>
+          <span class="value" id="timer">0:00</span>
+        </div>
+        <div class="panel-section">
+          <span class="label">EFECTOS</span>
+          <span class="info effects" id="effects">—</span>
+        </div>
+      </aside>
+
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
@@ -30,30 +59,68 @@
 
         <div class="panel-section">
           <span class="label">NEXT</span>
-          <canvas id="next-canvas" width="120" height="120"></canvas>
-        </div>
-
-        <div class="panel-section controls">
-          <span class="label">CONTROLS</span>
-          <ul>
-            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
-            <li><kbd>↑</kbd> rotar</li>
-            <li><kbd>↓</kbd> bajar</li>
-            <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
-            <li><kbd>T</kbd> tema</li>
-          </ul>
+          <canvas id="next-canvas" class="preview" width="120" height="120"></canvas>
+          <canvas id="queue-canvas" class="preview hidden" width="120" height="120"></canvas>
         </div>
 
         <button id="theme-btn" type="button" aria-label="Cambiar entre tema claro y oscuro">Tema claro</button>
       </aside>
     </div>
 
-    <div id="overlay" class="overlay hidden">
+    <div class="controls">
+      <span class="label">CONTROLS</span>
+      <ul>
+        <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+        <li><kbd>↑</kbd>/<kbd>X</kbd> rotar</li>
+        <li><kbd>↓</kbd> bajar</li>
+        <li><kbd>Space</kbd> caída</li>
+        <li><kbd>C</kbd>/<kbd>Shift</kbd> guardar</li>
+        <li><kbd>E</kbd> habilidad</li>
+        <li><kbd>P</kbd> pausa</li>
+        <li><kbd>M</kbd> sonido: <span id="sound-state">on</span></li>
+        <li><kbd>T</kbd> tema</li>
+      </ul>
+    </div>
+
+    <div id="overlay" class="overlay">
       <div class="overlay-box">
-        <p id="overlay-title">GAME OVER</p>
-        <p id="overlay-score"></p>
-        <button id="restart-btn">Reiniciar</button>
+        <section id="view-menu" class="view">
+          <p class="overlay-heading">ELIGE MODO</p>
+          <div class="menu-grid">
+            <button class="menu-btn" data-mode="classic"><strong>Clásico</strong><span>Partida infinita</span></button>
+            <button class="menu-btn" data-mode="sprint"><strong>Sprint</strong><span>40 líneas en 2 minutos</span></button>
+            <button class="menu-btn" data-mode="garbage"><strong>Basura</strong><span>Sube basura cada 10 s. Sobrevive 3 minutos</span></button>
+            <button class="menu-btn" data-mode="fixed"><strong>Bloques fijos</strong><span>Elimina todos los bloques preubicados</span></button>
+            <button class="menu-btn" data-mode="invisible"><strong>Invisible</strong><span>Las piezas desaparecen al tocar el suelo. 20 líneas</span></button>
+            <button class="menu-btn" data-mode="reverse"><strong>Inversión</strong><span>Rotación invertida desde el nivel 3. 30 líneas</span></button>
+          </div>
+        </section>
+
+        <section id="view-pause" class="view hidden">
+          <p class="overlay-title">PAUSA</p>
+          <p class="overlay-sub">Pulsa <kbd>P</kbd> para continuar</p>
+        </section>
+
+        <section id="view-abilities" class="view hidden">
+          <p class="overlay-heading">HABILIDAD</p>
+          <div class="ability-list">
+            <button class="ability-btn" data-ability="0"><kbd>1</kbd> Ver 5 siguientes <span>20 s</span></button>
+            <button class="ability-btn" data-ability="1"><kbd>2</kbd> Intercambiar pieza <span>al azar</span></button>
+            <button class="ability-btn" data-ability="2"><kbd>3</kbd> Ralentizar el tiempo <span>10 s</span></button>
+            <button class="ability-btn" data-ability="3"><kbd>4</kbd> Deshacer colocación <span>última</span></button>
+            <button class="ability-btn" data-ability="4"><kbd>5</kbd> Hold libre <span>desbloquea</span></button>
+          </div>
+          <p class="overlay-sub"><kbd>Esc</kbd> cancelar</p>
+        </section>
+
+        <section id="view-end" class="view hidden">
+          <p id="overlay-title" class="overlay-title">GAME OVER</p>
+          <p id="overlay-score"></p>
+          <div class="end-buttons">
+            <button id="restart-btn">Reintentar</button>
+            <button id="menu-btn" class="secondary-btn">Menú</button>
+          </div>
+        </section>
       </div>
     </div>
     </div>
