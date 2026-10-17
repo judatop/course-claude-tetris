@@ -55,41 +55,88 @@ jobs:
                No crees labels nuevos. Si el evento es `edited` y algún label que pusiste antes ya no aplica,
                quítalo con `--remove-label`. No quites labels que no correspondan a tu análisis.
             5. Publica (o actualiza) un comentario de diagnóstico. El comentario DEBE empezar con la línea
-               `<!-- claude-issue-triage -->` para poder identificarlo después:
+               `<!-- claude-issue-triage -->` para poder identificarlo después.
+               - Escribe el cuerpo completo con la herramienta Write en el archivo `.triage-comment.md`
+                 (en la raíz del repo). Así el Markdown (backticks, tablas, bloques de código) no se rompe
+                 por el escapado del shell. Nunca pases el cuerpo inline con `--body "..."` ni `-f body="..."`.
                - Busca si ya existe con:
                  `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments --paginate --jq '.[] | select(.body | startswith("<!-- claude-issue-triage -->")) | .id'`
                - Si existe, actualízalo con
-                 `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<ID> -f body="..."`.
+                 `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<ID> -F body=@.triage-comment.md`.
                - Si no existe, créalo con
-                 `gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "..."`.
+                 `gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file .triage-comment.md`.
 
-            Formato del comentario de diagnóstico (Markdown):
+            Calidad del diagnóstico:
+            - Lee de verdad el código antes de opinar. Cita SIEMPRE ubicaciones reales con `archivo:línea`
+              y el nombre de la función; nunca inventes líneas ni funciones que no existan.
+            - Explica el "por qué", no solo el "qué": cómo fluye el código hasta el problema
+              (p. ej. `lockPiece()` → `merge()` → `clearLines()` → `spawn()`).
+            - Incluye fragmentos de código cortos (≤ 15 líneas) del código actual y, si ayuda, un esbozo
+              del cambio propuesto en un bloque ```js o ```diff.
+            - Sé concreto y accionable; evita relleno y frases genéricas.
+            - Omite cualquier sección marcada como opcional si no aporta nada.
+
+            Formato del comentario de diagnóstico (Markdown de GitHub). Respeta esta estructura y los emojis:
 
             <!-- claude-issue-triage -->
             ## 🔍 Diagnóstico automático
 
-            **Tipo:** bug | mejora | documentación | pregunta | otro
-            **Labels asignados:** ...
-            **Complejidad estimada:** baja | media | alta
+            > **TL;DR:** una sola frase con el diagnóstico y la solución recomendada.
 
-            ### Resumen
-            Qué se reporta o se pide, en 2-3 líneas.
+            | | |
+            |---|---|
+            | **Tipo** | 🐛 Bug · ✨ Mejora · 📚 Documentación · ❓ Pregunta · 🔧 Otro (elige uno) |
+            | **Prioridad** | 🔴 Alta · 🟡 Media · 🟢 Baja (elige una) |
+            | **Complejidad** | 🟢 Baja · 🟡 Media · 🔴 Alta (elige una) |
+            | **Labels asignados** | `label1` `label2` |
+            | **Archivos afectados** | `game.js` `index.html` ... |
 
-            ### Análisis
-            Causa probable (si es bug) o alcance del cambio (si es mejora). Referencia funciones y archivos
-            concretos con el formato `archivo:línea` (p. ej. `game.js:120` en `clearLines()`).
+            ### 📝 Resumen
+            Qué se reporta o se pide, en 2-3 líneas, con tus propias palabras.
 
-            ### Propuesta de solución
-            Pasos concretos para implementarla: qué funciones/archivos tocar y cómo. Menciona constantes
-            acopladas o efectos colaterales (p. ej. `COLS`/`ROWS`/`BLOCK` y el tamaño del canvas, o los
-            controles duplicados en `index.html` y el README).
+            ### 🔬 Análisis
+            Causa probable (si es bug) o alcance del cambio (si es mejora), explicando el flujo del código.
 
-            ### Criterios de aceptación
+            **Código relevante:**
+
+            | Ubicación | Función / elemento | Por qué importa |
+            |---|---|---|
+            | `game.js:120` | `clearLines()` | ... |
+
+            Fragmento del código actual si aclara el problema.
+
+            ### 🛠️ Propuesta de solución
+            1. Pasos numerados y concretos: qué funciones/archivos tocar y cómo.
+            2. ...
+
+            <details>
+            <summary>💡 Esbozo de implementación</summary>
+
+            ```diff
+            cambio sugerido
+            ```
+
+            </details>
+
+            ### ⚠️ Riesgos y efectos colaterales
+            - Constantes acopladas, regresiones posibles o partes que deben actualizarse a la vez
+              (p. ej. `COLS`/`ROWS`/`BLOCK` y el tamaño del canvas, o los controles duplicados en
+              `index.html` y el README). Omite la sección si no hay.
+
+            ### ✅ Criterios de aceptación
             - [ ] Lista verificable de lo que debe cumplirse para dar el issue por resuelto.
 
-            ### Preguntas abiertas
-            Información que falta en el issue para poder implementarlo (omite la sección si no hay).
+            ### 🧪 Cómo probarlo
+            1. `python3 -m http.server 8000` y abrir http://localhost:8000
+            2. Pasos manuales en el navegador para comprobar el cambio.
 
-            No modifiques archivos del repositorio ni abras pull requests: solo labels y el comentario.
+            ### ❓ Preguntas abiertas
+            Información que falta en el issue para poder implementarlo (opcional: omite si no hay).
+
+            ---
+            <sub>🤖 Diagnóstico generado automáticamente por Claude · se actualiza al editar el issue · evento: `${{ github.event.action }}`</sub>
+
+            No abras pull requests ni modifiques archivos del repositorio. La única excepción es
+            `.triage-comment.md`, que es temporal y no se commitea. Solo labels y el comentario.
           claude_args: |
-            --allowedTools "Read,Glob,Grep,Bash(gh issue view:*),Bash(gh label list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api:*)"
+            --allowedTools "Read,Glob,Grep,Write,Bash(gh issue view:*),Bash(gh label list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api:*)"
